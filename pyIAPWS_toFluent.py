@@ -1,5 +1,4 @@
 import os, argparse
-from numpy import interp as lininterp1D, vectorize, array as npArray
 from iapws import IAPWS97
 from iapws.iapws97 import _TSat_P as getSaturationTemperature
 from iapws.iapws97 import _PSat_T as getSaturationPressure_uncorrected
