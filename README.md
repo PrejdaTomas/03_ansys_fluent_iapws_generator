@@ -11,7 +11,7 @@ Afterwards the script generates the saturation properties for the evaporation-co
 The script also generates CSV files and optionally it also generates the plots
 The material data are generated in °C and bars - set your Fluent units up accordingly.
 
-Requisities:
+Required modules:
  - iapws (pip3 install iapws)
  - os
  - argparse
@@ -29,8 +29,8 @@ Usage:
 
 
 Notes:
- - tested on Fluent 18
- - latest version causes Fluent to Freeze - need to debug against the Fluent Material Database Files
+ - tested on Ansys Fluent 14 and Ansys Fluent 18
+ - latest version causes Fluent to freeze - need to debug against the Fluent Material Database Files
  - Next plans:
-   1. unit selection
+   1. unit selection for pressure and temperature
    2. maybe an UDF with IAPWS itself for Fluent
