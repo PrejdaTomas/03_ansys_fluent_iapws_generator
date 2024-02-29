@@ -1,9 +1,13 @@
 The file extracts material data for Ansys Fluent from iapws IF97 standard revided in 2007.
-The material data will be split into two submaterials: liquid material and vapour material, which are saved into an Fluent Material Database (SCHEME) file-
+The material data will be split into two submaterials: liquid material and vapour material, which are saved into an Fluent Material Database (SCHEME) file.
+
+The material data inputted into the file are:
   - density
   - dynamic viscosity
   - thermal conductivity
   - isobaric thermal capacity
+  - formation enthalpy (sadly it is not the standard-state-enthalpy: you have to input it yourself (the material database file is not able to load this property), 0 for liquid and latent heat for vapour: you will get the values in console output
+  - molar mass
 
 Afterwards the script generates the saturation properties for the evaporation-condensation model in Fluent (the saturation curve and surface tension/temperature dependency) - just copy the sequence into Fluent's console.
 
@@ -25,7 +29,7 @@ Usage:
     - PRESSURE_MPAS: absolute pressure in MPa(abs)
     - TLOWER_K: lower temperature bound in K
     - TUPPER_K: upper temperature bound in K
-    -    --plotting (optional, if not inputted, no plots are generates)
+    -    --plotting (optional, if not inputted, no plots are generated: if not inputted, matplotlib is not necessary)
 
 
 Notes:
