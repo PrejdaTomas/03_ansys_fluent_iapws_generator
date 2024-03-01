@@ -2,7 +2,7 @@ The file extracts material data for Ansys Fluent from iapws IF97 standard revide
 The material data will be split into two submaterials: liquid material and vapour material, which are saved into an Fluent Material Database (SCHEME) file.
 
 The steam table fails in (super)critical state:
-  - TCRIT       >= 647.096 K and PCRIT       >= 220.64 MPa
+  - TCRIT       >= 647.096 K and PCRIT       >= 22.064 MPa
 
 The IAPWS IF-97 uses the water triple point as a reference state:
 (T = 273.16 K, Pabs = 0.00611657 bar(abs) , and S = 0 J K-1 mol-1)
