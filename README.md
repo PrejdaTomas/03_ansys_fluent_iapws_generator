@@ -3,7 +3,10 @@ The material data will be split into two submaterials: liquid material and vapou
 
 The steam table fails in (super)critical state:
   - TCRIT       >= 647.096 K and PCRIT       >= 220.64 MPa
-    
+
+The IAPWS IF-97 uses the water triple point as a reference state:
+(T = 273.16 K, Pabs = 0.00611657 bar(abs) , and S = 0 J K-1 mol-1)
+
 The material data inputted into the file are:
   - density
   - dynamic viscosity
