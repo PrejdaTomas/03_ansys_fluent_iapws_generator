@@ -1,6 +1,9 @@
 The file extracts material data for Ansys Fluent from iapws IF97 standard revided in 2007.
 The material data will be split into two submaterials: liquid material and vapour material, which are saved into an Fluent Material Database (SCHEME) file.
 
+The steam table fails in (super)critical state:
+  - TCRIT       >= 647.096 K and PCRIT       >= 220.64 MPa
+    
 The material data inputted into the file are:
   - density
   - dynamic viscosity
@@ -19,6 +22,7 @@ Required modules:
  - iapws (pip3 install iapws)
  - os
  - argparse
+ - subplotterFuncs (optional, contains matplotlib)
  - matplotlib (optional)
 
 Usage:
