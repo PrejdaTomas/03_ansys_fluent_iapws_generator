@@ -225,7 +225,7 @@ if temperatureLower <= 0: raise ValueError("Negative lower bound of thermodynami
 if temperatureUpper <= 0: raise ValueError("Negative upper bound of thermodynamic temperature inputted: {0}".format(temperatureUpper))
 if temperatureUpper <= temperatureLower: raise ValueError("You have inputted a lower upper temperature than the lower, lower: {0} upper: {1}".format(temperatureLower, temperatureUpper))
 if temperatureLower >= temperatureUpper: raise ValueError("You have inputted a higher lower temperature than the upper, lower: {0} upper: {1}".format(temperatureLower, temperatureUpper))
-if (pressureAbsolute >= PCRIT/10 and temperatureLower >= TCRIT) or (pressureAbsolute >= PCRIT/10 and temperatureUpper >= TCRIT):
+if (pressureAbsolute >= PCRIT/10 and temperatureLower >= TCRIT+273.15) or (pressureAbsolute >= PCRIT/10 and temperatureUpper >= TCRIT+273.15):
     raise ValueError("You have entered the critical or supercritical fluid which is unsupported by this script: ({0} {1}) or ({0} {2})".format(pressureAbsolute,
                                                                                                                                                temperatureLower,
                                                                                                                                                temperatureUpper))
