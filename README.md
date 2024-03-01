@@ -21,6 +21,8 @@ Afterwards the script generates the saturation properties for the evaporation-co
 The script also generates CSV files and optionally it also generates the plots
 The material data are generated in °C and bars - set your Fluent units up accordingly.
 
+Required Python: anything supporting iapws and matplotlib, there are no f-strings, so it should run on both Python 2/python 3
+
 Required modules:
  - iapws (pip3 install iapws)
  - os
