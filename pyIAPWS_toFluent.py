@@ -62,7 +62,7 @@ args = parser.parse_args()
 
 print("You have inputted the following arguments:")
 for arg in vars(args): print("\t", arg, getattr(args, arg))
-
+print()
 
 
 
@@ -509,14 +509,15 @@ with open(path+ ".csv", "w") as filePort:
 
 
 print()
-print("Saturation temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(saturationTemperature, saturationTemperature-273.15))
-print("Reference temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(vapourVal_temperatureValues[1], vapourVal_temperatureValues[1]-273.15))
 print("Relative enthalpy [liquid]:\t{:.0F} [J kg-1 mol-1]".format(liquidVal_specificEnthalpyValues[-1]))
 print("Relative enthalpy [vapour]:\t{:.0F} [J kg-1 mol-1]".format(vapourVal_specificEnthalpyValues[0]))
+print("Reference state for relative enthalpies: triple point (T = 273.16 K, Pabs = 0.00611657 bar(abs) , and S = 0 J K-1 mol-1)")
 print()
-print("Standard-state-enthalpy [liquid]:\t{:.0F} [J kg-1 mol-1]".format(0))
-print("Standard-state-enthalpy [vapour]:\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
-print("Latent heat of evaporation:\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
+print("Saturation temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(saturationTemperature, saturationTemperature-273.15))
+print("Reference temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(vapourVal_temperatureValues[1], vapourVal_temperatureValues[1]-273.15))
+print("Latent heat of evaporation:\t\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
+print("Fluent Standard-state-enthalpy [liquid]:\t{:.0F} [J kg-1 mol-1]".format(0))
+print("Fluent Standard-state-enthalpy [vapour]:\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
 print()
 print("Saturation Curve Sequence Fluent:\n")
 print(saturCurveSequence)
