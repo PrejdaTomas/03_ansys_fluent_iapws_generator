@@ -38,7 +38,7 @@ Usage:
 
 Notes:
  - tested on Ansys Fluent 14 and Ansys Fluent 18
- - latest version causes Fluent to freeze - need to debug against the Fluent Material Database Files
+ - latest version no longer causes Fluent to freeze-> reason: Fluent freezes if more than 50 piecewise-linear data point are loaded
  - Next plans:
    1. unit selection for pressure and temperature
    2. maybe an UDF with IAPWS itself for Fluent
