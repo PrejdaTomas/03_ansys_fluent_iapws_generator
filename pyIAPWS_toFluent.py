@@ -3,6 +3,11 @@ from iapws import IAPWS97
 from iapws.iapws97 import _TSat_P as getSaturationTemperature
 from iapws.iapws97 import _PSat_T as getSaturationPressure_uncorrected
 
+
+
+
+TCRIT       = 647.096 - 273.15
+PCRIT       = 220.64
 #region MSG_GEN
 msg = "\n"+10*"_"
 msg += "A IAPWS pf97 steam table generator for Ansys Fluent.\n"
@@ -22,50 +27,47 @@ parser = argparse.ArgumentParser(description = msg)
 
 parser.add_argument("path",
                     action = "store",
-                    help = "Napis adresu (se jmenem souboru), kam chces vystupy ulozit (csv, scm)",
+                    help = "Input the path with the filename without an extension where you want to store the outputs (csv, scm)",
                     default= os.getcwd()
                     )
 
 parser.add_argument("levels",
                     action = "store",
-                    help = "Zadej pocet urovni pro generaci parni tabulky (prirozene kladne cislo)",
-                    #default=int(input("Zadej pocet urovni pro generaci parni tabulky (prirozene kladne cislo)"))
+                    help = "Input number of rows your table will have (positive integer), the Fluent properties are not able to handle more than 50 piecewise-linear values,\nbut since we generate two tables (liquid, vapour), you can try more than 50 as they will get split after the saturation point",
                     )
 
 parser.add_argument("pabs",
                     action = "store",
-                    help = "Zadej absolutni tlak [MPa a]",
-                    #default= float(input("Zadej absolutni tlak [MPa a]: ").strip())
+                    help = "Input the absolute pressure [MPa a]",
                     )
 
 parser.add_argument("tlow",
                     action = "store",
-                    help = "Zadej dolni mez termodynamicke teploty [K]",
-                    #default= float(input("Zadej dolni mez termodynamicke teploty [K]: ").strip())
+                    help = "Input the lower thermodynamic temperature bound [K]",
                     )
 
 parser.add_argument("thigh",
                     action = "store",
-                    help = "Zadej horni mez termodynamicke teploty [K]",
-                    #default= float(input("Zadej horni mez termodynamicke teploty [K]: ").strip())
+                    help = "Input the upper thermodynamic temperature bound [K]",
                     )
 
 parser.add_argument("--plotting",
                     action = "store_true",
-                    help = "Napis --plotting pro vykresleni grafu",
+                    help = "Type --plotting to store material-data plots, optional",
                     default= False
                     )
 
 args = parser.parse_args()
 #endregion CONSOLE_ARGUMENTS
 
-print("Vlozil jsi nasledujici argumenty:")
+print("You have inputted the following arguments:")
 for arg in vars(args): print("\t", arg, getattr(args, arg))
 
 
 
 
-linspace = lambda lo,hi,steps: [lo + step*(hi-lo)/(steps-1) for step in range(steps)]
+linspace:list[float] = lambda lo, hi, steps: [lo + step * (hi - lo) / (steps - 1) for step in range(steps)]
+
 def getSaturationPressure(temperature: float) -> float|str:
     """
     Gets the saturation pressure for selected temperature in bar(a) from IAPWS if97
@@ -112,7 +114,6 @@ def fluentIAPWSgen(temperature: list[float],
                    thermal_conductivity: list[float],
                    specific_enthalpy: list[float],
                    reference_temperature: float = None,
-                   standard_state_enthalpy: float = None,
                    name: str=None) -> str:
     """Generates the water-vapour material for use in Ansys Fluent (scm file to be imported as material database).\n
 
@@ -123,7 +124,6 @@ def fluentIAPWSgen(temperature: list[float],
         - specific_heat: list of float values (isobaric heat capacity: J kg-1 K-1)
         - thermal_conductivity: list of float values (thermal conductivity: W m-1 K-1)
         - specific_enthalpy: list of float values (specific enthalpy: J kg-1 mol-1) <this unit from Fluent is really funky>
-        - standard_state_enthalpy: float in J kg-1 mol-1 (temperature to which standard state enthalpy relates to)
         - reference_temperature: float in K (temperature to which enthalpy relates to)
         - name: name of the material
 
@@ -146,7 +146,6 @@ def fluentIAPWSgen(temperature: list[float],
         strOutput += 2*"\t"+")\n"
         return strOutput 
     schemeString = "\n"
-    #schemeString =  scheme(0, "")
     schemeString += scheme(1, "{0} fluid".format(name))
     schemeString += scheme(2, "chemical-formula . #f)")
     schemeString += propertyWriter("density", temperature, density)
@@ -154,11 +153,9 @@ def fluentIAPWSgen(temperature: list[float],
     schemeString += propertyWriter("thermal-conductivity", temperature, thermal_conductivity)
     schemeString += propertyWriter("viscosity", temperature, viscosity)
     schemeString += propertyWriter("formation-enthalpy", temperature, specific_enthalpy)
-    schemeString += 2*"\t" + ";(standard-state-enthalpy (constant . {0}))\n".format(standard_state_enthalpy)
-    schemeString += 2*"\t" + "(reference-temperature (constant . {0}))\n".format(reference_temperature)
-    schemeString += 2*"\t" + "(molecular-weight (constant . 18.0153))\n"
+    schemeString += scheme(2,"reference-temperature (constant . {0}))".format(reference_temperature))
+    schemeString += scheme(2,"molecular-weight (constant . 18.0153))")
     schemeString += 1*"\t"+")\n"
-    #schemeString += 0*"\t"+")\n"
     return schemeString
 
 def getClosestIndexInArray(value: float,
@@ -214,6 +211,7 @@ def closeArray(valType: str, temperatures: list[float], *args:tuple[list[float]]
         arg.insert(0, arg[0])
         arg.append(arg[-1])
 
+
 levels              = int(args.levels)
 pressureAbsolute    = float(args.pabs)
 temperatureLower    = float(args.tlow)
@@ -221,13 +219,18 @@ temperatureUpper    = float(args.thigh)
 plotting            = bool(args.plotting)
 path                = str(args.path)
 
-if levels <= 0: raise ValueError("Pocet urovni musi byt kladne prirozene cislo, zadal jsi: {0}".format(levels))
-if pressureAbsolute <= 0: raise ValueError("Zadal jsi zaporny absolutni tlak: {0}".format(pressureAbsolute))
-if temperatureLower <= 0: raise ValueError("Zadal jsi zapornou spodni teplotu: {0}".format(temperatureLower))
-if temperatureUpper <= 0: raise ValueError("Zadal jsi zapornou horni teplotu: {0}".format(temperatureUpper))
-if temperatureUpper <= temperatureLower: raise ValueError("Zadal jsi horni teplotu nizsi nez dolni, dolni: {0} horni: {1}".format(temperatureLower,temperatureUpper))
-if temperatureLower >= temperatureUpper: raise ValueError("Zadal jsi dolni teplotu vyssi nez dolni, dolni: {0} horni: {1}".format(temperatureLower,temperatureUpper))
+if levels <= 0: raise ValueError("The number of levels has to be a positive integer: {0}".format(levels))
+if pressureAbsolute <= 0: raise ValueError("Negative absolute pressure inputted: {0}".format(pressureAbsolute))
+if temperatureLower <= 0: raise ValueError("Negative lower bound of thermodynamic temperature inputted: {0}".format(temperatureLower))
+if temperatureUpper <= 0: raise ValueError("Negative upper bound of thermodynamic temperature inputted: {0}".format(temperatureUpper))
+if temperatureUpper <= temperatureLower: raise ValueError("You have inputted a lower upper temperature than the lower, lower: {0} upper: {1}".format(temperatureLower, temperatureUpper))
+if temperatureLower >= temperatureUpper: raise ValueError("You have inputted a higher lower temperature than the upper, lower: {0} upper: {1}".format(temperatureLower, temperatureUpper))
+if (pressureAbsolute >= PCRIT/10 and temperatureLower >= TCRIT) or (pressureAbsolute >= PCRIT/10 and temperatureUpper >= TCRIT):
+    raise ValueError("You have entered the critical or supercritical fluid which is unsupported by this script: ({0} {1}) or ({0} {2})".format(pressureAbsolute,
+                                                                                                                                               temperatureLower,
+                                                                                                                                               temperatureUpper))
 
+#region SUMMARY_VALUES
 saturationTemperature               = getSaturationTemperature(pressureAbsolute)
 temperatureValues                   = linspace(temperatureLower, temperatureUpper, levels - 2)
 insertValToClosest(saturationTemperature+0e-3, temperatureValues)
@@ -241,10 +244,11 @@ specificEnthalpyValues              = []
 specificEntropyValues               = []
 linearExpansionCoefficientValues    = []
 phaseValues                         = []
-
+#endregion SUMMARY_VALUES
 
 with open(path+ ".csv", "w") as filePort:
     filePort.write("T, Psat, ro, mu, cp, lambda, std. enthalpy, std. entropy, lexp. coeff, phase\n")
+    
     for temperature, pressure in zip(temperatureValues, saturationPressureValues):
         properties = getFluentProperties(iapwsCoordinates=IAPWS97(T=temperature, P=pressureAbsolute))
         densityValues.append(properties[0])
@@ -257,305 +261,267 @@ with open(path+ ".csv", "w") as filePort:
         phaseValues.append(properties[7])
         filePort.write("{0:.6F}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}\n".format(temperature, pressure, *properties))
 
-#region PHASE_VALS
-liquidVal_temperatureValues             = [val[0] for val in zip(temperatureValues, phaseValues)                if "Liquid" == val[1]]
-liquidVal_densityValues                 = [val[0] for val in zip(densityValues, phaseValues)                    if "Liquid" == val[1]]
-liquidVal_viscosityValues               = [val[0] for val in zip(viscosityValues, phaseValues)                  if "Liquid" == val[1]]
-liquidVal_isobaricThermalCapacityValues = [val[0] for val in zip(isobaricThermalCapacityValues, phaseValues)    if "Liquid" == val[1]]
-liquidVal_thermalConductivityValues     = [val[0] for val in zip(thermalConductivityValues, phaseValues)        if "Liquid" == val[1]]
-liquidVal_specificEnthalpyValues        = [val[0] for val in zip(specificEnthalpyValues, phaseValues)           if "Liquid" == val[1]]
-liquidVal_specificEntropyValues         = [val[0] for val in zip(specificEntropyValues, phaseValues)            if "Liquid" == val[1]]
-liquidVal_linearExpansionCoefficientValues = [val[0] for val in zip(linearExpansionCoefficientValues, phaseValues)  if "Liquid" == val[1]]
+    #region PHASE_VALS
+    liquidVal_temperatureValues             = [val[0] for val in zip(temperatureValues, phaseValues)                if "Liquid" == val[1]]
+    liquidVal_densityValues                 = [val[0] for val in zip(densityValues, phaseValues)                    if "Liquid" == val[1]]
+    liquidVal_viscosityValues               = [val[0] for val in zip(viscosityValues, phaseValues)                  if "Liquid" == val[1]]
+    liquidVal_isobaricThermalCapacityValues = [val[0] for val in zip(isobaricThermalCapacityValues, phaseValues)    if "Liquid" == val[1]]
+    liquidVal_thermalConductivityValues     = [val[0] for val in zip(thermalConductivityValues, phaseValues)        if "Liquid" == val[1]]
+    liquidVal_specificEnthalpyValues        = [val[0] for val in zip(specificEnthalpyValues, phaseValues)           if "Liquid" == val[1]]
+    liquidVal_specificEntropyValues         = [val[0] for val in zip(specificEntropyValues, phaseValues)            if "Liquid" == val[1]]
+    liquidVal_linearExpansionCoefficientValues = [val[0] for val in zip(linearExpansionCoefficientValues, phaseValues)  if "Liquid" == val[1]]
 
-vapourVal_temperatureValues                = [val[0] for val in zip(temperatureValues, phaseValues)                if val[1] in ("Vapour", "Gas")]
-vapourVal_temperatureValues[0]             = saturationTemperature
-vapourVal_densityValues                    = [val[0] for val in zip(densityValues, phaseValues)                    if val[1] in ("Vapour", "Gas")]
-vapourVal_viscosityValues                  = [val[0] for val in zip(viscosityValues, phaseValues)                  if val[1] in ("Vapour", "Gas")]
-vapourVal_isobaricThermalCapacityValues    = [val[0] for val in zip(isobaricThermalCapacityValues, phaseValues)    if val[1] in ("Vapour", "Gas")]
-vapourVal_thermalConductivityValues        = [val[0] for val in zip(thermalConductivityValues, phaseValues)        if val[1] in ("Vapour", "Gas")]
-vapourVal_specificEnthalpyValues           = [val[0] for val in zip(specificEnthalpyValues, phaseValues)           if val[1] in ("Vapour", "Gas")]
-vapourVal_specificEntropyValues            = [val[0] for val in zip(specificEntropyValues, phaseValues)            if val[1] in ("Vapour", "Gas")]
-vapourVal_linearExpansionCoefficientValues = [val[0] for val in zip(linearExpansionCoefficientValues, phaseValues) if val[1] in ("Vapour", "Gas")]
-#endregion PHASE_VALS
-
-closeArray("liquid",
-           liquidVal_temperatureValues,
-           liquidVal_densityValues,
-           liquidVal_viscosityValues,
-           liquidVal_isobaricThermalCapacityValues,
-           liquidVal_thermalConductivityValues,
-           liquidVal_specificEnthalpyValues,
-           liquidVal_specificEntropyValues,
-           liquidVal_linearExpansionCoefficientValues)
-
-closeArray("vapour",
-           vapourVal_temperatureValues,
-           vapourVal_densityValues,
-           vapourVal_viscosityValues,
-           vapourVal_isobaricThermalCapacityValues,
-           vapourVal_thermalConductivityValues,
-           vapourVal_specificEnthalpyValues,
-           vapourVal_specificEntropyValues,
-           vapourVal_linearExpansionCoefficientValues)
-
-with open(path+ "_liquid.csv", "w") as filePort:
-    filePort.write("T, ro, mu, cp, lambda, std. enthalpy, std. entropy, lexp. coeff, Psat\n")
-    for val in zip(liquidVal_temperatureValues,
-                   liquidVal_densityValues,
-                   liquidVal_viscosityValues,
-                   liquidVal_isobaricThermalCapacityValues,
-                   liquidVal_thermalConductivityValues,
-                   liquidVal_specificEnthalpyValues,
-                   liquidVal_specificEntropyValues,
-                   liquidVal_linearExpansionCoefficientValues):
-        if val[0] == 1.0: filePort.write("00{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
-        else: filePort.write("{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
-              
-with open(path+ "_vapour.csv", "w") as filePort:
-    filePort.write("T, ro, mu, cp, lambda, std. enthalpy, std. entropy, lexp. coeff\n")
-    for val in zip(vapourVal_temperatureValues,
-                   vapourVal_densityValues,
-                   vapourVal_viscosityValues,
-                   vapourVal_isobaricThermalCapacityValues,
-                   vapourVal_thermalConductivityValues,
-                   vapourVal_specificEnthalpyValues,
-                   vapourVal_specificEntropyValues,
-                   vapourVal_linearExpansionCoefficientValues):
-        if val[0] == 1.0: filePort.write("00{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
-        else: filePort.write("{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
+    vapourVal_temperatureValues                = [val[0] for val in zip(temperatureValues, phaseValues)                if val[1] in ("Vapour", "Gas")]
+    vapourVal_temperatureValues[0]             = saturationTemperature
+    vapourVal_densityValues                    = [val[0] for val in zip(densityValues, phaseValues)                    if val[1] in ("Vapour", "Gas")]
+    vapourVal_viscosityValues                  = [val[0] for val in zip(viscosityValues, phaseValues)                  if val[1] in ("Vapour", "Gas")]
+    vapourVal_isobaricThermalCapacityValues    = [val[0] for val in zip(isobaricThermalCapacityValues, phaseValues)    if val[1] in ("Vapour", "Gas")]
+    vapourVal_thermalConductivityValues        = [val[0] for val in zip(thermalConductivityValues, phaseValues)        if val[1] in ("Vapour", "Gas")]
+    vapourVal_specificEnthalpyValues           = [val[0] for val in zip(specificEnthalpyValues, phaseValues)           if val[1] in ("Vapour", "Gas")]
+    vapourVal_specificEntropyValues            = [val[0] for val in zip(specificEntropyValues, phaseValues)            if val[1] in ("Vapour", "Gas")]
+    vapourVal_linearExpansionCoefficientValues = [val[0] for val in zip(linearExpansionCoefficientValues, phaseValues) if val[1] in ("Vapour", "Gas")]
+    #endregion PHASE_VALS
+    
         
-with open(path+ ".scm", "w") as filePort:
-    filePort.write(0 * "\t" + "({0}\n".format(""))
-    filePort.write(fluentIAPWSgen(temperatureValues,
-                                densityValues,
-                                viscosityValues,
-                                isobaricThermalCapacityValues,
-                                thermalConductivityValues,
-                                specificEnthalpyValues,
-                                name="water-if97",
-                                reference_temperature=vapourVal_temperatureValues[1],
-                                standard_state_enthalpy=0))
 
-    filePort.write(fluentIAPWSgen(vapourVal_temperatureValues,
-                                vapourVal_densityValues,
-                                vapourVal_viscosityValues,
-                                vapourVal_isobaricThermalCapacityValues,
-                                vapourVal_thermalConductivityValues,
-                                vapourVal_specificEnthalpyValues,
-                                name="water-vapour-if97",
-                                reference_temperature=vapourVal_temperatureValues[1],
-                                standard_state_enthalpy=vapourVal_specificEnthalpyValues[1]-liquidVal_specificEnthalpyValues[-2]))
+    closeArray("liquid",
+            liquidVal_temperatureValues,
+            liquidVal_densityValues,
+            liquidVal_viscosityValues,
+            liquidVal_isobaricThermalCapacityValues,
+            liquidVal_thermalConductivityValues,
+            liquidVal_specificEnthalpyValues,
+            liquidVal_specificEntropyValues,
+            liquidVal_linearExpansionCoefficientValues)
 
-    filePort.write(fluentIAPWSgen(liquidVal_temperatureValues,
-                                liquidVal_densityValues,
-                                liquidVal_viscosityValues,
-                                liquidVal_isobaricThermalCapacityValues,
-                                liquidVal_thermalConductivityValues,
-                                liquidVal_specificEnthalpyValues,
-                                name="water-liquid-if97",
-                                reference_temperature=vapourVal_temperatureValues[1],
-                                standard_state_enthalpy=0))
-    filePort.write(0*"\t"+")\n")
+    closeArray("vapour",
+            vapourVal_temperatureValues,
+            vapourVal_densityValues,
+            vapourVal_viscosityValues,
+            vapourVal_isobaricThermalCapacityValues,
+            vapourVal_thermalConductivityValues,
+            vapourVal_specificEnthalpyValues,
+            vapourVal_specificEntropyValues,
+            vapourVal_linearExpansionCoefficientValues)
 
-with open(path+ "_saturationCurve.csv", "w") as filePort:
-    additionTemperatures        = linspace(274.15, temperatureValues[-2], 49)
-    #states                      = (IAPWS97(T=temp, P = getSaturationPressure_uncorrected(temp)) for temp in additionTemperatures)
-    states                      = (IAPWS97(T=temp, x=0) for temp in additionTemperatures)
-    
-    base = "//define/phase/interaction-domain , , , , , , , , , yes liquid vapour evaporation-condensation no yes 50 "
-    base_satur = base[:]
-    base_sigma = "no yes evaporation-condensation 50 "
-    filePort.write("Tsat, Psat, Sigma\n")
-    
-    saturTemperatures   = list()
-    saturPressures      = list()
-    sigmas              = list()
-    
-    for thermodynamicState in states:
-        Tsat    = thermodynamicState.T-273.15
-        Psat    = thermodynamicState.P*10
-        sigma   = thermodynamicState.sigma
-        saturTemperatures.append(Tsat)
-        saturPressures.append(Psat)
-        sigmas.append(sigma)
-        #print("T: {0}\tP:{1}\tS:{2}".format(Tsat, Psat, sigma))
-        base_satur += " {0} {1} ".format(Psat, Tsat)
-        base_sigma += " {0} {1} ".format(Tsat, sigma)
-        filePort.write("{0}, {1}, {2}\n".format(Tsat, Psat, sigma))
+    latentHeat = vapourVal_specificEnthalpyValues[0] - liquidVal_specificEnthalpyValues[-1]
+
+    with open(path+ "_liquid.csv", "w") as filePort:
+        filePort.write("T, ro, mu, cp, lambda, std. enthalpy, std. entropy, lexp. coeff\n")
+        for val in zip(liquidVal_temperatureValues,
+                    liquidVal_densityValues,
+                    liquidVal_viscosityValues,
+                    liquidVal_isobaricThermalCapacityValues,
+                    liquidVal_thermalConductivityValues,
+                    liquidVal_specificEnthalpyValues,
+                    liquidVal_specificEntropyValues,
+                    liquidVal_linearExpansionCoefficientValues):
+            if val[0] == 1.0: filePort.write("00{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
+            else: filePort.write("{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
+                
+    with open(path+ "_vapour.csv", "w") as filePort:
+        filePort.write("T, ro, mu, cp, lambda, std. enthalpy, std. entropy, lexp. coeff\n")
+        for val in zip(vapourVal_temperatureValues,
+                    vapourVal_densityValues,
+                    vapourVal_viscosityValues,
+                    vapourVal_isobaricThermalCapacityValues,
+                    vapourVal_thermalConductivityValues,
+                    vapourVal_specificEnthalpyValues,
+                    vapourVal_specificEntropyValues,
+                    vapourVal_linearExpansionCoefficientValues):
+            if val[0] == 1.0: filePort.write("00{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
+            else: filePort.write("{0:.6F}, {1:.9F}, {2:.9F}, {3:.9F}, {4:.9F}, {5:.9F}, {6:.9F}, {7:.9F}\n".format(*val))
+
+    with open(path+ ".scm", "w") as filePort:
+        filePort.write(0 * "\t" + "({0}\n".format(""))
+
+        filePort.write(fluentIAPWSgen(vapourVal_temperatureValues,
+                                    vapourVal_densityValues,
+                                    vapourVal_viscosityValues,
+                                    vapourVal_isobaricThermalCapacityValues,
+                                    vapourVal_thermalConductivityValues,
+                                    vapourVal_specificEnthalpyValues,
+                                    name="water-vapour-if97",
+                                    reference_temperature=vapourVal_temperatureValues[1])
+        )
+                    
+        filePort.write(fluentIAPWSgen(liquidVal_temperatureValues,
+                                    liquidVal_densityValues,
+                                    liquidVal_viscosityValues,
+                                    liquidVal_isobaricThermalCapacityValues,
+                                    liquidVal_thermalConductivityValues,
+                                    liquidVal_specificEnthalpyValues,
+                                    name="water-liquid-if97",
+                                    reference_temperature=vapourVal_temperatureValues[1])
+        )
+                    
+        filePort.write(0*"\t"+")\n")
+
+    with open(path+ "_saturationCurve.csv", "w") as filePort:
+        additionTemperatures        = linspace(274.15, temperatureValues[-2], 49)
+        states                      = (IAPWS97(T=temp, x=0) for temp in additionTemperatures)
         
-    Tcrit       = 647.096 - 273.15
-    Pcrit       = 220.64
-    Sigmacrit   = 0 #Eotvos rule
-    saturTemperatures.append(Tcrit)
-    saturPressures.append(Pcrit)
-    sigmas.append(Sigmacrit)
+        base = "//define/phase/interaction-domain , , , , , , , , , yes liquid vapour evaporation-condensation no yes piecewise-linear 50\t "
+        base_satur = base[:]
+        base_sigma = "no yes piecewise-linear 50\t "
+        filePort.write("Tsat, Psat, Sigma\n")
+        
+        saturTemperatures   = list()
+        saturPressures      = list()
+        sigmas              = list()
+        
+        for thermodynamicState in states:
+            Tsat    = thermodynamicState.T-273.15
+            Psat    = thermodynamicState.P*10
+            sigma   = thermodynamicState.sigma
+            saturTemperatures.append(Tsat)
+            saturPressures.append(Psat)
+            sigmas.append(sigma)
+            base_satur += " {0} {1} ".format(Psat, Tsat)
+            base_sigma += " {0} {1} ".format(Tsat, sigma)
+            filePort.write("{0}, {1}, {2}\n".format(Tsat, Psat, sigma))
+            
+        Sigmacrit   = 0 #Eötvös rule
+        saturTemperatures.append(TCRIT)
+        saturPressures.append(PCRIT)
+        sigmas.append(Sigmacrit)
+        
+        base_satur += " {0} {1} ".format(PCRIT, TCRIT)
+        base_sigma += " {0} {1} ".format(TCRIT, Sigmacrit)
+        filePort.write("{0}, {1}, {2}\n".format(TCRIT, PCRIT, Sigmacrit))
+        saturCurveSequence = base_satur + base_sigma + "\t , "
+        with open(path + "_saturationCurve_fluentSequence.FLUSEQ", "w") as subFilePort:
+            subFilePort.write(base_satur)
+            subFilePort.write(base_sigma)
+
+
+    if plotting:
+        print("Plotting: {} -> Importing the subplot tools".format(plotting))
+        import subplotterFuncs      
+        my_dpi = 250
+        x_shift = 10
+        
+        fig_1_title = "Thermohydraulic properties for Pabs = {0} MPa".format(pressureAbsolute)
+        fig_2_title = fig_1_title + " [Liq]"
+        fig_3_title = fig_1_title + " [Vap]"
+        fig_4_title = "Saturation Properties"
+        
+        path_1 = path[:]
+        path_2 = path_1 + "_liquid"
+        path_3 = path_1 + "_vapour"
+        path_4 = path_1 + "_saturationCurve"
+        
+        temperatureDensityLabels            = subplotterFuncs.plotDescriptor(VariableName="Density",
+                                                            xLabel="T [K]",
+                                                            yLabel=r"$\rho$ [kg m$^{-3}$]")
+        
+        temperatureCpLabels                 = subplotterFuncs.plotDescriptor(VariableName="Isobaric Thermal Capacity",
+                                                            xLabel= "T [K]",
+                                                            yLabel= r"cp [J kg$^{-1}$ K$^{-1}$]")
+        
+        temperatureDynViscosityLabels       = subplotterFuncs.plotDescriptor(VariableName="Dynamic Viscosity",
+                                                            xLabel="T [K]",
+                                                            yLabel= r"$\mu$ [Pa s]")
+        
+        temperatureThermConductivityLabels  =subplotterFuncs. plotDescriptor(VariableName="Thermal Conductivity",
+                                                            xLabel="T [K]",
+                                                            yLabel= r"$\lambda$ [W m$^{-1}$ K$^{-1}$]")
+        
+        saturationPressureLabels            = subplotterFuncs.plotDescriptor(VariableName="Saturation Curve",
+                                                            xLabel="$T_{sat}$ [K]", 
+                                                            yLabel="$P_{sat}$ [bara]")
+        
+        surfaceTensionLabels                = subplotterFuncs.plotDescriptor(VariableName="Surface Tension",
+                                                            xLabel="$T_{sat}$ [K]", 
+                                                            yLabel= r"$\sigma$ [N m$^{-1}$]")
+        
+        subplotterFuncs.base_layout2x2(fig_1_title,
+                    [
+                        temperatureDensityLabels,
+                        temperatureCpLabels, 
+                        temperatureDynViscosityLabels,
+                        temperatureThermConductivityLabels
+                    ],
+                    temperatureValues,
+                    [
+                        densityValues,
+                        isobaricThermalCapacityValues,
+                        viscosityValues,
+                        thermalConductivityValues
+                    ],
+                    plotting,
+                    path_1,
+                    my_dpi,
+                    subplotterFuncs.goldenRationer(4))
     
-    base_satur += " {0} {1} ".format(Pcrit, Tcrit)
-    base_sigma += " {0} {1} ".format(Tcrit, Sigmacrit)
-    filePort.write("{0}, {1}, {2}\n".format(Tcrit, Pcrit, Sigmacrit))
-    saturCurveSequence = base_satur + base_sigma + " , "
-    with open(path + "_saturationCurve_fluentSequence.FLUSEQ", "w") as subFilePort:
-        subFilePort.write(base_satur)
-        subFilePort.write(base_sigma)
-         
-if plotting: 
-    import matplotlib.pyplot as plt
-    my_dpi = 250
-    fig, axs = plt.subplots(2, 2, sharex=True, sharey=False, layout="constrained")
-    fig.set_size_inches(4*1.618,4*1.000)
-    fig.suptitle("Thermohydraulic properties for Pabs = {0} MPa".format(pressureAbsolute))
-
-    axs[0, 0].plot(temperatureValues, densityValues, "black")
-    axs[0, 0].set_title("Density")
-    axs[0, 0].set_xlabel("T [K]")
-    axs[0, 0].set_ylabel(r"$\rho$ [kg m$^{-3}$]")
-    axs[0, 0].grid()
-
-    axs[1, 0].plot(temperatureValues, viscosityValues, "blue")
-    axs[1, 0].set_title("Dynamic Viscosity")
-    axs[1, 0].set_xlabel("T [K]")
-    axs[1, 0].set_ylabel(r"$\mu$ [Pa s]")
-    axs[1, 0].grid()
-
-    axs[0, 1].plot(temperatureValues, isobaricThermalCapacityValues, "red")
-    axs[0, 1].set_title("Isobaric Thermal Capacity")
-    axs[0, 1].set_xlabel("T [K]")
-    axs[0, 1].set_ylabel(r"cp [J kg$^{-1}$ K$^{-1}$]")
-    axs[0, 1].grid()
-
-    axs[1, 1].plot(temperatureValues, thermalConductivityValues, "green")
-    axs[1, 1].set_title("Thermal Conductivity")
-    axs[1, 1].set_xlabel("T [K]")
-    axs[1, 1].set_ylabel(r"$\lambda$ [W m$^{-1}$ K$^{-1}$]")
-    axs[1, 1].grid()
-    plt.savefig(path+ ".png", dpi=my_dpi)
+        subplotterFuncs.base_layout2x2(fig_2_title,
+                    [
+                        temperatureDensityLabels,
+                        temperatureCpLabels, 
+                        temperatureDynViscosityLabels,
+                        temperatureThermConductivityLabels
+                    ],
+                    liquidVal_temperatureValues,
+                    [
+                        liquidVal_densityValues,
+                        liquidVal_isobaricThermalCapacityValues,
+                        liquidVal_viscosityValues,
+                        liquidVal_thermalConductivityValues
+                    ],
+                    plotting,
+                    path_2,
+                    my_dpi,
+                    subplotterFuncs.goldenRationer(4))
+        
+        subplotterFuncs.base_layout2x2(fig_3_title,
+                    [
+                        temperatureDensityLabels,
+                        temperatureCpLabels, 
+                        temperatureDynViscosityLabels,
+                        temperatureThermConductivityLabels
+                    ],
+                    temperatureValues,
+                    [
+                        densityValues,
+                        isobaricThermalCapacityValues,
+                        viscosityValues,
+                        thermalConductivityValues
+                    ],
+                    plotting,
+                    path_3,
+                    my_dpi,
+                    subplotterFuncs.goldenRationer(4))
     
-    
-    
-    x_shift = 10
-    fig, axs = plt.subplots(2, 2, sharex=True, sharey=False, layout="constrained")
-    fig.set_size_inches(4*1.618,4*1.000)
-    fig.suptitle("Thermohydraulic properties for Pabs = {0} MPa [Liq]".format(pressureAbsolute))
+        subplotterFuncs.base_layout2x1(fig_4_title,
+                    [
+                        saturationPressureLabels,
+                        surfaceTensionLabels, 
+                    ],
+                    saturTemperatures,
+                    [
+                        saturPressures,
+                        sigmas
+                    ],
+                    plotting,
+                    path_4,
+                    my_dpi,
+                    subplotterFuncs.goldenRationer(4))
 
-    axs[0, 0].plot(liquidVal_temperatureValues, liquidVal_densityValues, "black")
-    axs[0, 0].set_title("Density")
-    axs[0, 0].set_xlabel("T [K]")
-    axs[0, 0].set_xbound(
-                        lower=liquidVal_temperatureValues[1] - x_shift,
-                        upper=liquidVal_temperatureValues[-2] + x_shift
-                        )                        
-    axs[0, 0].set_ylabel(r"$\rho$ [kg m$^{-3}$]")
-    axs[0, 0].grid()
 
-    axs[1, 0].plot(liquidVal_temperatureValues, liquidVal_viscosityValues, "blue")
-    axs[1, 0].set_title("Dynamic Viscosity")
-    axs[1, 0].set_xlabel("T [K]")
-    axs[1, 0].set_xbound(
-                        lower=liquidVal_temperatureValues[1] - x_shift,
-                        upper=liquidVal_temperatureValues[-2] + x_shift
-                        )                    
-    axs[1, 0].set_ylabel(r"$\mu$ [Pa s]")
-    axs[1, 0].grid()
-
-    axs[0, 1].plot(liquidVal_temperatureValues, liquidVal_isobaricThermalCapacityValues, "red")
-    axs[0, 1].set_title("Isobaric Thermal Capacity")
-    axs[0, 1].set_xlabel("T [K]")
-    axs[0, 1].set_xbound(
-                        lower=liquidVal_temperatureValues[1] - x_shift,
-                        upper=liquidVal_temperatureValues[-2] + x_shift
-                        )                           
-    axs[0, 1].set_ylabel(r"cp [J kg$^{-1}$ K$^{-1}$]")
-    axs[0, 1].grid()
-
-    axs[1, 1].plot(liquidVal_temperatureValues, liquidVal_thermalConductivityValues, "green")
-    axs[1, 1].set_title("Thermal Conductivity")
-    axs[1, 1].set_xlabel("T [K]")
-    axs[1, 1].set_xbound(
-                        lower=liquidVal_temperatureValues[1] - x_shift,
-                        upper=liquidVal_temperatureValues[-2] + x_shift
-                        )                            
-    axs[1, 1].set_ylabel(r"$\lambda$ [W m$^{-1}$ K$^{-1}$]")
-    axs[1, 1].grid()
-    plt.savefig(path+ "_liquid.png", dpi=my_dpi)
-    
-    
-    
-    
-    
-    fig, axs = plt.subplots(2, 2, sharex=True, sharey=False, layout="constrained")
-    fig.set_size_inches(4*1.618,4*1.000)
-    fig.suptitle("Thermohydraulic properties for Pabs = {0} MPa [Vap]".format(pressureAbsolute))
-
-    axs[0, 0].plot(vapourVal_temperatureValues, vapourVal_densityValues, "black")
-    axs[0, 0].set_title("Density")
-    axs[0, 0].set_xlabel("T [K]")
-    axs[0, 0].set_xbound(
-                        lower=vapourVal_temperatureValues[1] - x_shift,
-                        upper=vapourVal_temperatureValues[-2] + x_shift
-                        )                            
-    axs[0, 0].set_ylabel(r"$\rho$ [kg m$^{-3}$]")
-    axs[0, 0].grid()
-
-    axs[1, 0].plot(vapourVal_temperatureValues, vapourVal_viscosityValues, "blue")
-    axs[1, 0].set_title("Dynamic Viscosity")
-    axs[1, 0].set_xlabel("T [K]")
-    axs[1, 0].set_xbound(
-                        lower=vapourVal_temperatureValues[1] - x_shift,
-                        upper=vapourVal_temperatureValues[-2] + x_shift
-                        )                         
-    axs[1, 0].set_ylabel(r"$\mu$ [Pa s]")
-    axs[1, 0].grid()
-
-    axs[0, 1].plot(vapourVal_temperatureValues, vapourVal_isobaricThermalCapacityValues, "red")
-    axs[0, 1].set_title("Isobaric Thermal Capacity")
-    axs[0, 1].set_xlabel("T [K]")
-    axs[0, 1].set_xbound(
-                        lower=vapourVal_temperatureValues[1] - x_shift,
-                        upper=vapourVal_temperatureValues[-2] + x_shift
-                        )                          
-    axs[0, 1].set_ylabel(r"cp [J kg$^{-1}$ K$^{-1}$]")
-    axs[0, 1].grid()
-
-    axs[1, 1].plot(vapourVal_temperatureValues, vapourVal_thermalConductivityValues, "green")
-    axs[1, 1].set_title("Thermal Conductivity")
-    axs[1, 1].set_xlabel("T [K]")
-    axs[1, 1].set_xbound(
-                        lower=vapourVal_temperatureValues[1] - x_shift,
-                        upper=vapourVal_temperatureValues[-2] + x_shift
-                        )                          
-    axs[1, 1].set_ylabel(r"$\lambda$ [W m$^{-1}$ K$^{-1}$]")
-    axs[1, 1].grid()
-    plt.savefig(path+ "_vapour.png", dpi=my_dpi)
-    plt.cla()
-    plt.clf()
-    
-    fig, axs = plt.subplots(1, 2, sharex=True, sharey=False, layout="constrained")
-    fig.set_size_inches(4*1.618,4*1.000)
-    fig.suptitle("Saturation Properties")
-    axs[0].scatter(saturTemperatures, saturPressures, c="black", s=5)
-    axs[0].grid()
-    axs[0].set_title("Saturation Curve")
-    axs[0].set_xlabel("T [°C]")
-    axs[0].set_ylabel("P [bar(a)]")
-    axs[1].scatter(saturTemperatures, sigmas, c="black", s=5)
-    axs[1].grid()
-    axs[1].set_title("Surface Tension l->g")
-    axs[1].set_xlabel("T [°C]")
-    axs[1].set_ylabel(r"$\sigma$ [N m$^{-1}$]")
-    plt.savefig(path+ "_saturationCurve.png", dpi=my_dpi)
-    
-    #plt.show()
 print()
 print("Saturation temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(saturationTemperature, saturationTemperature-273.15))
 print("Reference temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(vapourVal_temperatureValues[1], vapourVal_temperatureValues[1]-273.15))
 print("Relative enthalpy [liquid]:\t{:.0F} [J kg-1 mol-1]".format(liquidVal_specificEnthalpyValues[-1]))
 print("Relative enthalpy [vapour]:\t{:.0F} [J kg-1 mol-1]".format(vapourVal_specificEnthalpyValues[0]))
-print("Latent heat of evaporation:\t\t{:.0F} [J kg-1 mol-1]".format(vapourVal_specificEnthalpyValues[0]-liquidVal_specificEnthalpyValues[-1]))
+print()
+print("Standard-state-enthalpy [liquid]:\t{:.0F} [J kg-1 mol-1]".format(0))
+print("Standard-state-enthalpy [vapour]:\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
+print("Latent heat of evaporation:\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
 print()
 print("Saturation Curve Sequence Fluent:\n")
 print(saturCurveSequence)
 print()    
-print("Uspesne dokonceno!")
+print("Run Succesful!")
 print("_______________________________")
 print()
 print()
