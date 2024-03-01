@@ -3,11 +3,17 @@ from iapws import IAPWS97
 from iapws.iapws97 import _TSat_P as getSaturationTemperature
 from iapws.iapws97 import _PSat_T as getSaturationPressure_uncorrected
 
+t = lambda Ti: Ti-273.15
+T = lambda ti: ti+273.15
+
+MPatoBar = lambda Pi: Pi*10
+BartoMPa = lambda Pi: Pi/10
 
 
 
-TCRIT       = 647.096 - 273.15
+TCRIT       = 647.096
 PCRIT       = 220.64
+
 #region MSG_GEN
 msg = "\n"+10*"_"
 msg += "A IAPWS pf97 steam table generator for Ansys Fluent.\n"
@@ -225,7 +231,8 @@ if temperatureLower <= 0: raise ValueError("Negative lower bound of thermodynami
 if temperatureUpper <= 0: raise ValueError("Negative upper bound of thermodynamic temperature inputted: {0}".format(temperatureUpper))
 if temperatureUpper <= temperatureLower: raise ValueError("You have inputted a lower upper temperature than the lower, lower: {0} upper: {1}".format(temperatureLower, temperatureUpper))
 if temperatureLower >= temperatureUpper: raise ValueError("You have inputted a higher lower temperature than the upper, lower: {0} upper: {1}".format(temperatureLower, temperatureUpper))
-if (pressureAbsolute >= PCRIT/10 and temperatureLower >= TCRIT+273.15) or (pressureAbsolute >= PCRIT/10 and temperatureUpper >= TCRIT+273.15):
+if (pressureAbsolute >= BartoMPa(PCRIT) and temperatureLower >= TCRIT) or \
+    (pressureAbsolute >= BartoMPa(PCRIT) and temperatureUpper >= TCRIT):
     raise ValueError("You have entered the critical or supercritical fluid which is unsupported by this script: ({0} {1}) or ({0} {2})".format(pressureAbsolute,
                                                                                                                                                temperatureLower,
                                                                                                                                                temperatureUpper))
@@ -381,18 +388,17 @@ with open(path+ ".csv", "w") as filePort:
             base_sigma += " {0} {1} ".format(Tsat, sigma)
             filePort.write("{0}, {1}, {2}\n".format(Tsat, Psat, sigma))
             
-        Sigmacrit   = 0 #Eötvös rule
-        saturTemperatures.append(TCRIT)
+        Sigmacrit   = 1e-12 #Eötvös rule, set non-zero, so Fluent allows the run
+        saturTemperatures.append(t(TCRIT))
         saturPressures.append(PCRIT)
         sigmas.append(Sigmacrit)
         
-        base_satur += " {0} {1} ".format(PCRIT, TCRIT)
-        base_sigma += " {0} {1} ".format(TCRIT, Sigmacrit)
-        filePort.write("{0}, {1}, {2}\n".format(TCRIT, PCRIT, Sigmacrit))
+        base_satur += " {0} {1} ".format(PCRIT, t(TCRIT))
+        base_sigma += " {0} {1} ".format(t(TCRIT), Sigmacrit)
+        filePort.write("{0}, {1}, {2}\n".format(t(TCRIT), PCRIT, Sigmacrit))
         saturCurveSequence = base_satur + base_sigma + "\t , "
-        with open(path + "_saturationCurve_fluentSequence.FLUSEQ", "w") as subFilePort:
-            subFilePort.write(base_satur)
-            subFilePort.write(base_sigma)
+        with open(path + "_saturationCurve_fluentSequence.jou", "w") as subFilePort:
+            subFilePort.write(saturCurveSequence)
 
 
     if plotting:
@@ -452,7 +458,8 @@ with open(path+ ".csv", "w") as filePort:
                     plotting,
                     path_1,
                     my_dpi,
-                    subplotterFuncs.goldenRationer(4))
+                    subplotterFuncs.goldenRationer(4),
+                    )
     
         subplotterFuncs.base_layout2x2(fig_2_title,
                     [
@@ -471,7 +478,8 @@ with open(path+ ".csv", "w") as filePort:
                     plotting,
                     path_2,
                     my_dpi,
-                    subplotterFuncs.goldenRationer(4))
+                    subplotterFuncs.goldenRationer(4),
+                    plotXCUTOFF=x_shift)
         
         subplotterFuncs.base_layout2x2(fig_3_title,
                     [
@@ -480,17 +488,18 @@ with open(path+ ".csv", "w") as filePort:
                         temperatureDynViscosityLabels,
                         temperatureThermConductivityLabels
                     ],
-                    temperatureValues,
+                    vapourVal_temperatureValues,
                     [
-                        densityValues,
-                        isobaricThermalCapacityValues,
-                        viscosityValues,
-                        thermalConductivityValues
+                        vapourVal_densityValues,
+                        vapourVal_isobaricThermalCapacityValues,
+                        vapourVal_viscosityValues,
+                        vapourVal_thermalConductivityValues
                     ],
                     plotting,
                     path_3,
                     my_dpi,
-                    subplotterFuncs.goldenRationer(4))
+                    subplotterFuncs.goldenRationer(4),
+                    plotXCUTOFF=x_shift)
     
         subplotterFuncs.base_layout2x1(fig_4_title,
                     [
@@ -513,9 +522,9 @@ print("Relative enthalpy [liquid]:\t{:.0F} [J kg-1 mol-1]".format(liquidVal_spec
 print("Relative enthalpy [vapour]:\t{:.0F} [J kg-1 mol-1]".format(vapourVal_specificEnthalpyValues[0]))
 print("Reference state for relative enthalpies: triple point (T = 273.16 K, Pabs = 0.00611657 bar(abs) , and S = 0 J K-1 mol-1)")
 print()
-print("Saturation temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(saturationTemperature, saturationTemperature-273.15))
-print("Reference temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(vapourVal_temperatureValues[1], vapourVal_temperatureValues[1]-273.15))
-print("Latent heat of evaporation:\t\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
+print("Latent heat of evaporation:\t\t{0:.0F} [J kg-1 mol-1] @ [{1} °C, {2} MPa]".format(latentHeat, t(saturationTemperature), pressureAbsolute))
+print("Saturation temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(saturationTemperature, t(saturationTemperature)))
+print("Reference temperature:\t\t\t{:.6F} [K]\t{:.6F} [°C]".format(vapourVal_temperatureValues[1], t(vapourVal_temperatureValues[1])))
 print("Fluent Standard-state-enthalpy [liquid]:\t{:.0F} [J kg-1 mol-1]".format(0))
 print("Fluent Standard-state-enthalpy [vapour]:\t{:.0F} [J kg-1 mol-1]".format(latentHeat))
 print()
