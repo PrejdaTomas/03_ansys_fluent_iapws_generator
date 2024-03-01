@@ -6,8 +6,8 @@ from iapws.iapws97 import _PSat_T as getSaturationPressure_uncorrected
 t = lambda Ti: Ti-273.15
 T = lambda ti: ti+273.15
 
-MPatoBar = lambda Pi: Pi*10
-BartoMPa = lambda Pi: Pi/10
+MPatoBar = lambda Pi: Pi*10.0
+BartoMPa = lambda Pi: Pi/10.0
 
 
 
